@@ -54,10 +54,10 @@ async def migrate():
 
 async def main():
     servers = [
-        'arafire',
-        'dem',
-        'aesg',
-        'dmr',
+        'myserver',
+        'otherserver',
+        'blahserver',
+        'bigcompany',
         'blah',
         'some',
         'other',
