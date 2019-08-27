@@ -2,10 +2,6 @@ import random
 import asyncio
 
 
-class Task():
-    x = 1
-
-
 RED_CROSS = "\033[31m✗\033[0m"
 GREEN_CHECK = "\033[32m✔\033[0m"
 
