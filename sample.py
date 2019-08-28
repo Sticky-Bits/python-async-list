@@ -52,7 +52,7 @@ async def migrate():
 # Below is example
 
 
-async def main():
+def main():
     servers = [
         'myserver',
         'otherserver',
@@ -66,8 +66,8 @@ async def main():
         'here',
     ]
     example_jobs = [(migrate(), server_name) for server_name in servers]
-    await run_tasks_async_with_progress(example_jobs)
+    asyncio.run(run_tasks_async_with_progress(example_jobs))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
