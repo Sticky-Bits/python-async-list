@@ -1,7 +1,6 @@
 import random
 import asyncio
 import curses
-import time
 
 
 def init_curses():
@@ -18,22 +17,20 @@ def init_curses():
     return stdscr
 
 
-def end_curses():
-    curses.echo()
-    curses.nocbreak()
-    input()
-    curses.endwin()
-
-
 async def run_tasks_async_with_progress(tasks):
     stdscr = init_curses()
     # Ugly.
     just = len(max(tasks, key=lambda x: len(x[1]))[1]) + 1
     tasks = [print_async_complete(task, num, len(tasks), just, stdscr) for num, task in enumerate(tasks)]
-    await asyncio.gather(*tasks)
-    stdscr.addstr(10, 0, 'Done. Press enter to continue.')
+    outputs = await asyncio.gather(*tasks)
+    stdscr.addstr(len(tasks), 0, 'Done. Would you like to print the outputs of the commands? [Y/n]')
     stdscr.refresh()
-    end_curses()
+    curses.echo()
+    curses.nocbreak()
+    print_logs = input().lower() != 'n'
+    curses.endwin()
+    if print_logs:
+        print("\n\n".join(outputs))
 
 
 async def print_async_complete(task, position, length, just, stdscr):
@@ -46,23 +43,28 @@ async def print_async_complete(task, position, length, just, stdscr):
     # TODO: Log output of `cor` to a file named f'{name}.log'
     stdscr.addstr(position, 0, name)
     stdscr.refresh()
+    output = f'{"-"*20}\n{name}\n{"-"*20}\n'
     try:
-        await cor
-    except Exception:
+        output += await cor
+    except Exception as e:
         stdscr.addstr(position, just, '✗', curses.color_pair(1))
+        output += f'Exception: {str(e)}'
     else:
         stdscr.addstr(position, just, '✔', curses.color_pair(2))
     stdscr.refresh()
+    output += f'\n{"-"*20}'
+    return output
+
+
+# Above is library
+# Below is example
 
 
 async def migrate():
     await asyncio.sleep(random.uniform(1, 5))
     if random.random() < 0.3:
         raise Exception("OOPS")
-
-
-# Above is library
-# Below is example
+    return "I ran!"
 
 
 def main():
