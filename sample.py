@@ -1,27 +1,42 @@
 import random
 import asyncio
+import curses
+import time
 
 
-RED_CROSS = "\033[31m✗\033[0m"
-GREEN_CHECK = "\033[32m✔\033[0m"
+def init_curses():
+    stdscr = curses.initscr()
+    curses.start_color()
+    curses.use_default_colors()
+    # -1 is default terminal background color
+    curses.init_pair(1, curses.COLOR_RED, -1)
+    curses.init_pair(2, curses.COLOR_GREEN, -1)
+    curses.noecho()
+    curses.cbreak()
+    # Turn off cursor
+    curses.curs_set(0)
+    return stdscr
 
 
-def move_cursor(x, y):
-    print(f'\x1b[{y+1};{x+1}H')
-
-
-def clear():
-    print('\x1b[2J')
+def end_curses():
+    curses.echo()
+    curses.nocbreak()
+    input()
+    curses.endwin()
 
 
 async def run_tasks_async_with_progress(tasks):
-    just = len(max(tasks, key=lambda x: len(x[1]))[1])
-    tasks = [print_async_complete(task, num, len(tasks), just) for num, task in enumerate(tasks)]
-    clear()
+    stdscr = init_curses()
+    # Ugly.
+    just = len(max(tasks, key=lambda x: len(x[1]))[1]) + 1
+    tasks = [print_async_complete(task, num, len(tasks), just, stdscr) for num, task in enumerate(tasks)]
     await asyncio.gather(*tasks)
+    stdscr.addstr(10, 0, 'Done. Press enter to continue.')
+    stdscr.refresh()
+    end_curses()
 
 
-async def print_async_complete(task, position, length, just):
+async def print_async_complete(task, position, length, just, stdscr):
     """
     Move cursor to `position`, print task name, run  task coroutine, then move
     back to `pos` print message and a justified completion mark (red cross or
@@ -29,17 +44,15 @@ async def print_async_complete(task, position, length, just):
     """
     cor, name = task
     # TODO: Log output of `cor` to a file named f'{name}.log'
-    move_cursor(0, position)
-    print(name)
+    stdscr.addstr(position, 0, name)
+    stdscr.refresh()
     try:
         await cor
     except Exception:
-        completed_icon = RED_CROSS
+        stdscr.addstr(position, just, '✗', curses.color_pair(1))
     else:
-        completed_icon = GREEN_CHECK
-    move_cursor(0, position)
-    print(name.ljust(just) + f" {completed_icon}")
-    move_cursor(0, length)
+        stdscr.addstr(position, just, '✔', curses.color_pair(2))
+    stdscr.refresh()
 
 
 async def migrate():
