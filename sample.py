@@ -3,8 +3,10 @@ import asyncio
 import curses
 
 
-def init_curses():
+def init_curses(num_tasks):
     stdscr = curses.initscr()
+    height, width = stdscr.getmaxyx()
+    win = curses.newpad(num_tasks, 300)
     curses.start_color()
     curses.use_default_colors()
     # -1 is default terminal background color
@@ -14,72 +16,59 @@ def init_curses():
     curses.cbreak()
     # Turn off cursor
     curses.curs_set(0)
-    return stdscr
+    return (win, height, width)
 
+def addstr(win_info, x, y, text, color=0):
+    win, height, width = win_info
+    win.addstr(x, y, text, color)
+    win.clrtoeol()
+    win.clearok(1)
+    win.refresh(0, 0, 0, 0, height-1, width-1)
 
 async def run_tasks_async_with_progress(tasks):
-    stdscr = init_curses()
+    sem = asyncio.Semaphore(2)
+    win_info = init_curses(len(tasks) + 1)
+    addstr(win_info, 0, 0, f'Your command is now running on the following {len(tasks)} servers (may extend off bottom of terminal):')
     # Ugly.
     just = len(max(tasks, key=lambda x: len(x[1]))[1]) + 1
-    tasks = [print_async_complete(task, num, len(tasks), just, stdscr) for num, task in enumerate(tasks)]
-    outputs = await asyncio.gather(*tasks)
-    stdscr.addstr(len(tasks), 0, 'Done. Would you like to print the outputs of the commands? [Y/n]')
-    stdscr.refresh()
+    tasks = [print_async_complete(task, num + 1, just, win_info, sem) for num, task in enumerate(tasks)]
+    outputs = await asyncio.gather(*tasks[::-1])
+    addstr(win_info, 0, 0, 'Done. Press enter to print the outputs of the commands.')
     curses.echo()
     curses.nocbreak()
-    print_logs = input().lower() != 'n'
+    input()
     curses.endwin()
-    if print_logs:
-        print("\n\n".join(outputs))
+    print("\n\n".join(outputs))
 
 
-async def print_async_complete(task, position, length, just, stdscr):
-    """
-    Move cursor to `position`, print task name, run  task coroutine, then move
-    back to `pos` print message and a justified completion mark (red cross or
-    green check) depending on if the coroutine raises an exception or not.
-    """
+async def print_async_complete(task, position, just, win_info, sem):
     cor, name = task
-    # TODO: Log output of `cor` to a file named f'{name}.log'
-    stdscr.addstr(position, 0, name)
-    stdscr.refresh()
+    addstr(win_info, position, 0, name)
     output = f'{"-"*20}\n{name}\n{"-"*20}\n'
     try:
+        await sem.acquire()
         output += await cor
     except Exception as e:
-        stdscr.addstr(position, just, '✗', curses.color_pair(1))
+        addstr(win_info, position, just, '✗', curses.color_pair(1))
         output += f'Exception: {str(e)}'
     else:
-        stdscr.addstr(position, just, '✔', curses.color_pair(2))
-    stdscr.refresh()
-    output += f'\n{"-"*20}'
+        addstr(win_info, position, just, '✔', curses.color_pair(2))
+    sem.release()
     return output
-
 
 # Above is library
 # Below is example
 
 
 async def migrate():
-    await asyncio.sleep(random.uniform(1, 5))
+    await asyncio.sleep(random.uniform(0, 1))
     if random.random() < 0.3:
         raise Exception("OOPS")
     return "I ran!"
 
 
 def main():
-    servers = [
-        'myserver',
-        'otherserver',
-        'blahserver',
-        'bigcompany',
-        'blah',
-        'some',
-        'other',
-        'server',
-        'names',
-        'here',
-    ]
+    servers = [f'server {x+1}' for x in range(20)]
     example_jobs = [(migrate(), server_name) for server_name in servers]
     asyncio.run(run_tasks_async_with_progress(example_jobs))
 
